@@ -35,6 +35,23 @@ function formatMoney(n: number | null) {
   }).format(n);
 }
 
+function writeHref(g: Grant) {
+  const params = new URLSearchParams();
+  params.set('title', g.title);
+  params.set('funder', g.funder_name);
+  if (g.funding_amount_max != null) {
+    params.set('amount', String(g.funding_amount_max));
+  } else if (g.funding_amount_min != null) {
+    params.set('amount', String(g.funding_amount_min));
+  }
+  if (g.description) params.set('need', g.description.slice(0, 500));
+  if (g.source_name === 'grants_gov') params.set('template', 'federal');
+  else if (/deed|promise/i.test(g.funder_name)) params.set('template', 'deed');
+  else if (/initiative|foundation/i.test(g.funder_name))
+    params.set('template', 'foundation');
+  return `/write?${params.toString()}`;
+}
+
 export default function GrantExplorer() {
   const [region, setRegion] = useState('northwest');
   const [focus, setFocus] = useState<string[]>([]);
@@ -73,26 +90,18 @@ export default function GrantExplorer() {
     }
   }, []);
 
-  // Debounced federal search when query changes or National selected
   useEffect(() => {
     const q = query.trim();
-    const shouldSearch =
-      q.length >= 2 || (region === 'national' && q.length >= 2);
+    const shouldSearch = q.length >= 2;
 
     if (!shouldSearch) {
-      if (region === 'national' && q.length < 2) {
-        // Prompt user — don't auto-spam API
-        setFederal([]);
-      }
+      setFederal([]);
       return;
     }
 
-    const t = setTimeout(() => {
-      searchFederal(q.length >= 2 ? q : 'community');
-    }, 450);
-
+    const t = setTimeout(() => searchFederal(q), 450);
     return () => clearTimeout(t);
-  }, [query, region, searchFederal]);
+  }, [query, searchFederal]);
 
   const localGrants = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -116,11 +125,9 @@ export default function GrantExplorer() {
     });
   }, [region, focus, query]);
 
-  // Merge: local first, then federal (dedupe by title)
   const grants = useMemo(() => {
     const seen = new Set(localGrants.map((g) => g.title.toLowerCase()));
     const extra = federal.filter((g) => !seen.has(g.title.toLowerCase()));
-    // When National or active search, show federal; always keep matching local
     if (query.trim().length >= 2 || region === 'national') {
       return [...localGrants, ...extra];
     }
@@ -185,7 +192,7 @@ export default function GrantExplorer() {
           </div>
           <p className="text-xs text-slate-500">
             Type 2+ characters to pull open federal opportunities from Grants.gov.
-            Local Greater Minnesota demos always stay in the mix.
+            Then hit <strong className="text-slate-300">Write proposal</strong> on any card.
           </p>
         </div>
 
@@ -263,8 +270,8 @@ export default function GrantExplorer() {
                   </span>
                   <span className="capitalize">{g.eligible_region}</span>
                 </div>
-                <div className="flex flex-wrap gap-1 pt-1 items-center">
-                  {g.focus_categories.map((c) => (
+                <div className="flex flex-wrap gap-2 pt-2 items-center">
+                  {g.focus_categories.slice(0, 4).map((c) => (
                     <span
                       key={c}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400"
@@ -272,16 +279,24 @@ export default function GrantExplorer() {
                       {c.replace(/_/g, ' ')}
                     </span>
                   ))}
-                  {g.source_url && (
+                  <div className="ml-auto flex gap-2">
+                    {g.source_url && (
+                      <a
+                        href={g.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-slate-400 hover:text-cyan-400"
+                      >
+                        Source
+                      </a>
+                    )}
                     <a
-                      href={g.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-cyan-400 hover:underline ml-auto"
+                      href={writeHref(g)}
+                      className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25"
                     >
-                      Open source →
+                      Write proposal →
                     </a>
-                  )}
+                  </div>
                 </div>
               </article>
             ))}

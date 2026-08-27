@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import ProposalBuilder from '@/components/ProposalBuilder';
 
 export const metadata = {
@@ -18,11 +19,14 @@ export default function WritePage() {
         </h1>
         <p className="text-slate-400 max-w-2xl">
           Answer guided prompts. Get a structured draft you can copy into a
-          foundation portal, DEED application, or Word doc. Built for small
-          teams in Greater Minnesota — not consultants.
+          foundation portal, DEED application, or Word doc. Start from Discover
+          with <strong className="text-slate-300">Write proposal</strong> to
+          prefill funder and title.
         </p>
       </div>
-      <ProposalBuilder />
+      <Suspense fallback={<p className="text-slate-500 text-sm">Loading writer…</p>}>
+        <ProposalBuilder />
+      </Suspense>
     </div>
   );
 }

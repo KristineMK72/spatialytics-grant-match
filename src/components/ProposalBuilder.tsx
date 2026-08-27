@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 type Form = {
   orgName: string;
@@ -36,12 +37,45 @@ const EMPTY: Form = {
   capacity: '',
 };
 
-const STEPS: { key: keyof Form; label: string; hint: string; rows?: number }[] = [
-  {
-    key: 'orgName',
-    label: 'Organization name',
-    hint: 'Legal or commonly used name',
+const TEMPLATES: Record<
+  string,
+  { label: string; tips: string[] }
+> = {
+  foundation: {
+    label: 'Community foundation',
+    tips: [
+      'Lead with local need and community partners — foundations fund place.',
+      'Keep goals few and measurable; avoid jargon.',
+      'Budget should match the story (no mystery line items).',
+    ],
   },
+  deed: {
+    label: 'DEED / state program',
+    tips: [
+      'Emphasize jobs, wages, business capacity, or regional economic impact.',
+      'Cite Minnesota geography and eligible uses from the RFP.',
+      'Evaluation should track outputs the state can report on.',
+    ],
+  },
+  federal: {
+    label: 'Federal (Grants.gov)',
+    tips: [
+      'Mirror the NOFO language for goals and eligibility.',
+      'Be explicit about geographic service area and target population.',
+      'Plan for reporting burden — federal awards need clear metrics.',
+    ],
+  },
+  general: {
+    label: 'General',
+    tips: [
+      'Need → goals → activities → budget should tell one coherent story.',
+      'Name the place (county, lakes area) — Spatialytics edge is local.',
+    ],
+  },
+};
+
+const STEPS: { key: keyof Form; label: string; hint: string; rows?: number }[] = [
+  { key: 'orgName', label: 'Organization name', hint: 'Legal or commonly used name' },
   {
     key: 'mission',
     label: 'Mission (1–2 sentences)',
@@ -63,11 +97,7 @@ const STEPS: { key: keyof Form; label: string; hint: string; rows?: number }[] =
     label: 'Funder (if known)',
     hint: 'Foundation, DEED program, federal opportunity…',
   },
-  {
-    key: 'amount',
-    label: 'Amount requested',
-    hint: 'e.g. $15,000',
-  },
+  { key: 'amount', label: 'Amount requested', hint: 'e.g. $15,000' },
   {
     key: 'need',
     label: 'Need / problem',
@@ -120,7 +150,6 @@ const STEPS: { key: keyof Form; label: string; hint: string; rows?: number }[] =
 
 function buildDraft(f: Form): string {
   const lines: string[] = [];
-
   lines.push(`# ${f.grantTitle || 'Grant Proposal Draft'}`);
   lines.push('');
   if (f.orgName) lines.push(`**Applicant:** ${f.orgName}`);
@@ -128,13 +157,11 @@ function buildDraft(f: Form): string {
   if (f.amount) lines.push(`**Amount requested:** ${f.amount}`);
   if (f.community) lines.push(`**Service area:** ${f.community}`);
   lines.push('');
-
   if (f.mission) {
     lines.push('## Organizational mission');
     lines.push(f.mission);
     lines.push('');
   }
-
   if (f.need) {
     lines.push('## Statement of need');
     lines.push(f.need);
@@ -144,58 +171,91 @@ function buildDraft(f: Form): string {
     }
     lines.push('');
   }
-
   if (f.goals) {
     lines.push('## Goals and intended outcomes');
     lines.push(f.goals);
     lines.push('');
   }
-
   if (f.activities) {
     lines.push('## Project activities');
     lines.push(f.activities);
     lines.push('');
   }
-
   if (f.timeline) {
     lines.push('## Timeline');
     lines.push(f.timeline);
     lines.push('');
   }
-
   if (f.budgetNarrative) {
     lines.push('## Budget narrative');
     lines.push(f.budgetNarrative);
     lines.push('');
   }
-
   if (f.evaluation) {
     lines.push('## Evaluation and learning');
     lines.push(f.evaluation);
     lines.push('');
   }
-
   if (f.capacity) {
     lines.push('## Organizational capacity');
     lines.push(f.capacity);
     lines.push('');
   }
-
   lines.push('---');
   lines.push(
     '_Draft generated with Spatialytics Grant Writer. Review for accuracy, add citations, and adapt to funder guidelines._'
   );
-
   return lines.join('\n');
 }
 
+function formatAmount(raw: string) {
+  const n = Number(String(raw).replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return raw;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
 export default function ProposalBuilder() {
+  const searchParams = useSearchParams();
   const [form, setForm] = useState<Form>(EMPTY);
   const [step, setStep] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [template, setTemplate] = useState('general');
+  const [prefilled, setPrefilled] = useState(false);
+
+  useEffect(() => {
+    const title = searchParams.get('title');
+    const funder = searchParams.get('funder');
+    const amount = searchParams.get('amount');
+    const need = searchParams.get('need');
+    const tpl = searchParams.get('template');
+
+    if (!title && !funder) return;
+
+    setForm((prev) => ({
+      ...prev,
+      grantTitle: title ? `Proposal: ${title}` : prev.grantTitle,
+      funder: funder || prev.funder,
+      amount: amount ? formatAmount(amount) : prev.amount,
+      need: need || prev.need,
+      community: prev.community || 'Greater Minnesota',
+    }));
+    if (tpl && TEMPLATES[tpl]) setTemplate(tpl);
+    else if (funder && /deed|promise/i.test(funder)) setTemplate('deed');
+    else if (funder && /foundation|initiative/i.test(funder))
+      setTemplate('foundation');
+    else if (tpl === 'federal') setTemplate('federal');
+    setPrefilled(true);
+    // Jump to org name so user completes identity first
+    setStep(0);
+  }, [searchParams]);
 
   const draft = useMemo(() => buildDraft(form), [form]);
   const current = STEPS[step];
+  const tips = TEMPLATES[template] ?? TEMPLATES.general;
 
   function setField(key: keyof Form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -236,13 +296,49 @@ export default function ProposalBuilder() {
       capacity:
         'Existing volunteer base, relationships with area food shelves, and prior small-grant reporting experience. Fiscal sponsorship or board oversight in place.',
     });
+    setTemplate('foundation');
     setStep(0);
+    setPrefilled(false);
   }
 
   return (
     <div className="grid lg:grid-cols-2 gap-8">
-      {/* Guided form */}
       <div className="space-y-4">
+        {prefilled && (
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+            Prefilling from Discover. Title, funder, and amount are set — add your
+            organization details and flesh out the need.
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(TEMPLATES).map(([id, t]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTemplate(id)}
+              className={`px-3 py-1 rounded-full text-xs border transition ${
+                template === id
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200'
+                  : 'border-slate-700 text-slate-400 hover:border-slate-500'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+            Tips · {tips.label}
+          </p>
+          <ul className="space-y-1 text-xs text-slate-400 list-disc pl-4">
+            {tips.tips.map((tip) => (
+              <li key={tip}>{tip}</li>
+            ))}
+          </ul>
+        </div>
+
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm text-slate-400">
             Step{' '}
@@ -301,23 +397,15 @@ export default function ProposalBuilder() {
             </button>
             <button
               type="button"
-              onClick={() =>
-                setStep((s) => Math.min(STEPS.length - 1, s + 1))
-              }
+              onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
               className="px-4 py-2 rounded-full text-sm font-semibold bg-cyan-400 text-slate-950"
             >
               {step === STEPS.length - 1 ? 'Done' : 'Next'}
             </button>
           </div>
         </div>
-
-        <p className="text-xs text-slate-500">
-          Tip: Jump sections anytime by using Next/Back. Your draft updates live on
-          the right.
-        </p>
       </div>
 
-      {/* Live draft */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Live draft</h2>
