@@ -51,7 +51,7 @@ export default function GrantMap({
           : activeRegion === 'statewide'
             ? 5.5
             : 6.5,
-      attributionControl: true,
+      attributionControl: { compact: true },
     });
 
     map.addControl(
