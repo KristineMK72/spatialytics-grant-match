@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Grant Match | Spatialytics',
   description:
-    'Map-first grant discovery for Greater Minnesota nonprofits and community organizations.',
+    'Map-first grant discovery and proposal writing for Greater Minnesota nonprofits and community organizations.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="flex gap-4 text-sm text-slate-400">
               <a href="/" className="hover:text-cyan-400 transition">
                 Discover
+              </a>
+              <a href="/write" className="hover:text-cyan-400 transition">
+                Write
               </a>
               <a href="/pipeline" className="hover:text-cyan-400 transition">
                 Pipeline
